@@ -1,0 +1,89 @@
+name: Build CipherTalk 2026.827.0 Windows
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 60
+
+    steps:
+      - name: Checkout exact 2026.827.0 source
+        uses: actions/checkout@v5
+        with:
+          ref: d6e6cb7a994b76e27c1828bbca65cfd7aac1f23e
+
+      - name: Verify source version
+        shell: pwsh
+        run: |
+          $pkg = Get-Content package.json -Raw | ConvertFrom-Json
+          Write-Host "CipherTalk version: $($pkg.version)"
+          if ($pkg.version -ne "2026.827.0") {
+            throw "Unexpected package version: $($pkg.version)"
+          }
+
+          @(
+            "resources/WCDB.dll",
+            "resources/wcdb_api.dll",
+            "resources/wechat_key_tool.dll"
+          ) | ForEach-Object {
+            if (-not (Test-Path $_)) {
+              throw "Missing native file: $_"
+            }
+            Write-Host "Found: $_"
+          }
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22.12.0
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci --ignore-scripts
+
+      - name: Rebuild Electron native modules
+        run: npx electron-rebuild
+
+      - name: Install ffmpeg-static binary
+        run: node node_modules/ffmpeg-static/install.js
+
+      - name: Build Windows installer
+        run: npm run build:win
+
+      - name: Verify installer
+        shell: pwsh
+        run: |
+          $file = "release/CipherTalk-2026.827.0-Setup.exe"
+
+          if (-not (Test-Path $file)) {
+            throw "Installer not found: $file"
+          }
+
+          $info = Get-Item $file
+          Write-Host "Installer: $($info.FullName)"
+          Write-Host "Size: $($info.Length) bytes"
+
+          $hash = (Get-FileHash $file -Algorithm SHA256).Hash.ToLower()
+
+          "$hash  CipherTalk-2026.827.0-Setup.exe" |
+            Out-File `
+              -Encoding ascii `
+              "release/CipherTalk-2026.827.0-Setup.exe.sha256"
+
+          Write-Host "SHA256: $hash"
+
+      - name: Upload installer
+        uses: actions/upload-artifact@v4
+        with:
+          name: CipherTalk-2026.827.0-Windows
+          path: |
+            release/CipherTalk-2026.827.0-Setup.exe
+            release/CipherTalk-2026.827.0-Setup.exe.sha256
+            release/latest.yml
+          if-no-files-found: error
+          compression-level: 0
