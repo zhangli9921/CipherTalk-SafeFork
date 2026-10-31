@@ -1,17 +1,6 @@
 name: CipherTalk CLI
 
 on:
-  pull_request:
-    paths:
-      - 'CipherTalk-CLI/**'
-      - '.github/workflows/ciphertalk-cli.yml'
-  push:
-    branches:
-      - main
-      - master
-    paths:
-      - 'CipherTalk-CLI/**'
-      - '.github/workflows/ciphertalk-cli.yml'
   workflow_dispatch:
     inputs:
       publish:
@@ -112,3 +101,4 @@ jobs:
           }
           git tag "ciphertalk-cli-v${{ steps.version.outputs.version }}"
           git push origin "ciphertalk-cli-v${{ steps.version.outputs.version }}"
+
